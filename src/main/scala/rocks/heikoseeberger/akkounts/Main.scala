@@ -19,7 +19,7 @@ package rocks.heikoseeberger.akkounts
 import akka.actor.{ ActorSystem => ClassicSystem }
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
+import akka.actor.typed.scaladsl.adapter.{ ClassicActorSystemOps, TypedActorSystemOps }
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
@@ -35,7 +35,7 @@ object Main {
 
   private final val Name = "akkounts"
 
-  final case class Config()
+  final case class Config(httpServer: HttpServer.Config)
 
   def main(args: Array[String]): Unit = {
     // Always use async logging!
@@ -68,7 +68,9 @@ object Main {
           log.info(s"${context.system.name} joined cluster and is up")
         Cluster(context.system).subscriptions ! Unsubscribe(context.self)
 
-        // TODO Create streams, actors, HTTP server, etc.!
+        implicit val classicSystem: ClassicSystem = context.system.toClassic
+
+        HttpServer.run(config.httpServer)
 
         Behaviors.empty
       }

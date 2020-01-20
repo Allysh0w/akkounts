@@ -9,6 +9,22 @@ apiVersion: v1
 kind: Service
 metadata:
   namespace: akkounts
+  name: akkounts-http
+spec:
+  selector:
+    app: akkounts
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: akkounts
   name: akkounts-akka-management
 spec:
   selector:
@@ -46,6 +62,8 @@ spec:
 #            "-Dloglevel.root=info"
 #          ]
           ports:
+            - name: http
+              containerPort: 8080
             - name: akka-management
               containerPort: 8558
             - name: akka-remote

@@ -11,12 +11,16 @@ lazy val akkounts =
       libraryDependencies ++= Seq(
         library.akkaCluster,
         library.akkaDiscovery,
+        library.akkaHttp,
+        library.akkaHttpSprayJson, // Transitive dependency of Akka Management
         library.akkaMgmClusterBootstrap,
         library.akkaMgmDiscoveryK8n,
         library.disruptor,
         library.log4jCore,
         library.log4jSlf4j,
         library.pureConfig,
+        library.akkaHttpTestkit         % Test,
+        library.akkaStreamTestkit       % Test,
         library.scalaCheck              % Test,
         library.scalaTest               % Test,
         library.scalaTestPlusScalaCheck % Test,
@@ -31,6 +35,7 @@ lazy val library =
   new {
     object Version {
       val akka                    = "2.6.3"
+      val akkaHttp                = "10.1.11"
       val akkaMgm                 = "1.0.5"
       val disruptor               = "3.4.2"
       val log4j                   = "2.13.1"
@@ -41,8 +46,12 @@ lazy val library =
     }
     val akkaCluster              = "com.typesafe.akka"             %% "akka-cluster-typed"                % Version.akka
     val akkaDiscovery            = "com.typesafe.akka"             %% "akka-discovery"                    % Version.akka
+    val akkaHttp                 = "com.typesafe.akka"             %% "akka-http"                         % Version.akkaHttp
+    val akkaHttpSprayJson        = "com.typesafe.akka"             %% "akka-http-spray-json"              % Version.akkaHttp
+    val akkaHttpTestkit          = "com.typesafe.akka"             %% "akka-http-testkit"                 % Version.akkaHttp
     val akkaMgmClusterBootstrap  = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaMgm
     val akkaMgmDiscoveryK8n      = "com.lightbend.akka.discovery"  %% "akka-discovery-kubernetes-api"     % Version.akkaMgm
+    val akkaStreamTestkit        = "com.typesafe.akka"             %% "akka-stream-testkit"               % Version.akka
     val disruptor                = "com.lmax"                      %  "disruptor"                         % Version.disruptor
     val log4jCore                = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
     val log4jSlf4j               = "org.apache.logging.log4j"      %  "log4j-slf4j-impl"                  % Version.log4j
@@ -91,7 +100,7 @@ lazy val dockerSettings =
     Docker / maintainer := organizationName.value,
     Docker / version := "latest",
     dockerBaseImage := "adoptopenjdk:8u242-b08-jdk-hotspot",
-    dockerExposedPorts := Seq(8558, 25520),
+    dockerExposedPorts := Seq(8080, 8558, 25520),
   )
 
 lazy val commandAliases =
@@ -103,6 +112,7 @@ lazy val commandAliases =
         |-Dakka.management.cluster.bootstrap.contact-point-discovery.discovery-method=config
         |-Dakka.management.http.hostname=127.0.0.1
         |-Dakka.remote.artery.canonical.hostname=127.0.0.1
+        |-Dakkounts.http-server.interface=127.0.0.1
         |""".stripMargin
   ) ++
   addCommandAlias(
@@ -113,5 +123,6 @@ lazy val commandAliases =
         |-Dakka.management.cluster.bootstrap.contact-point-discovery.discovery-method=config
         |-Dakka.management.http.hostname=127.0.0.2
         |-Dakka.remote.artery.canonical.hostname=127.0.0.2
+        |-Dakkounts.http-server.interface=127.0.0.2
         |""".stripMargin
   )
