@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: akkounts
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: akkounts
+  name: akkounts-akka-management
+spec:
+  selector:
+    app: akkounts
+  type: NodePort
+  ports:
+    - name: akka-management
+      port: 8558
+      targetPort: akka-management
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: akkounts
+  name: akkounts
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: akkounts
+  template:
+    metadata:
+      namespace: akkounts
+      name: akkounts
+      labels:
+        app: akkounts
+    spec:
+      containers:
+        - name: akkounts
+          image: akkounts:latest
+          imagePullPolicy: IfNotPresent
+#          args: [
+#            "-Dloglevel.root=info"
+#          ]
+          ports:
+            - name: akka-management
+              containerPort: 8558
+            - name: akka-remote
+              containerPort: 25520
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8558
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: 8558
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: akkounts
+  name: pod-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "watch", "list"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: akkounts
+  name: read-pods
+subjects:
+  - kind: User
+    name: system:serviceaccount:akkounts:default
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io

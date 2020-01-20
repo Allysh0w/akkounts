@@ -2,6 +2,8 @@
 lib_managed
 project/project
 target
+scratch
+Scratch.scala
 
 # Worksheets (Eclipse or IntelliJ)
 *.sc

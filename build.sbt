@@ -5,12 +5,21 @@
 lazy val akkounts =
   project
     .in(file("."))
-    .enablePlugins(AutomateHeaderPlugin)
+    .enablePlugins(AutomateHeaderPlugin, JavaAppPackaging, DockerPlugin)
     .settings(settings)
     .settings(
       libraryDependencies ++= Seq(
-        library.scalaCheck % Test,
-        library.scalaTest  % Test,
+        library.akkaCluster,
+        library.akkaDiscovery,
+        library.akkaMgmClusterBootstrap,
+        library.akkaMgmDiscoveryK8n,
+        library.disruptor,
+        library.log4jCore,
+        library.log4jSlf4j,
+        library.pureConfig,
+        library.scalaCheck              % Test,
+        library.scalaTest               % Test,
+        library.scalaTestPlusScalaCheck % Test,
       )
     )
 
@@ -21,11 +30,26 @@ lazy val akkounts =
 lazy val library =
   new {
     object Version {
-      val scalaCheck = "1.14.3"
-      val scalaTest  = "3.1.0"
+      val akka                    = "2.6.3"
+      val akkaMgm                 = "1.0.5"
+      val disruptor               = "3.4.2"
+      val log4j                   = "2.13.1"
+      val pureConfig              = "0.12.3"
+      val scalaCheck              = "1.14.3"
+      val scalaTest               = "3.1.1"
+      val scalaTestPlusScalaCheck = "3.1.1.1"
     }
-    val scalaCheck = "org.scalacheck" %% "scalacheck" % Version.scalaCheck
-    val scalaTest  = "org.scalatest"  %% "scalatest"  % Version.scalaTest
+    val akkaCluster              = "com.typesafe.akka"             %% "akka-cluster-typed"                % Version.akka
+    val akkaDiscovery            = "com.typesafe.akka"             %% "akka-discovery"                    % Version.akka
+    val akkaMgmClusterBootstrap  = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaMgm
+    val akkaMgmDiscoveryK8n      = "com.lightbend.akka.discovery"  %% "akka-discovery-kubernetes-api"     % Version.akkaMgm
+    val disruptor                = "com.lmax"                      %  "disruptor"                         % Version.disruptor
+    val log4jCore                = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
+    val log4jSlf4j               = "org.apache.logging.log4j"      %  "log4j-slf4j-impl"                  % Version.log4j
+    val pureConfig               = "com.github.pureconfig"         %% "pureconfig"                        % Version.pureConfig
+    val scalaCheck               = "org.scalacheck"                %% "scalacheck"                        % Version.scalaCheck
+    val scalaTest                = "org.scalatest"                 %% "scalatest"                         % Version.scalaTest
+    val scalaTestPlusScalaCheck  = "org.scalatestplus"             %% "scalacheck-1-14"                   % Version.scalaTestPlusScalaCheck
   }
 
 // *****************************************************************************
@@ -34,7 +58,9 @@ lazy val library =
 
 lazy val settings =
   commonSettings ++
-  scalafmtSettings
+  scalafmtSettings ++
+  dockerSettings ++
+  commandAliases
 
 lazy val commonSettings =
   Seq(
@@ -58,4 +84,34 @@ lazy val commonSettings =
 lazy val scalafmtSettings =
   Seq(
     scalafmtOnCompile := true,
+  )
+
+lazy val dockerSettings =
+  Seq(
+    Docker / maintainer := organizationName.value,
+    Docker / version := "latest",
+    dockerBaseImage := "adoptopenjdk:8u242-b08-jdk-hotspot",
+    dockerExposedPorts := Seq(8558, 25520),
+  )
+
+lazy val commandAliases =
+  addCommandAlias(
+    "r1",
+    """|reStart
+        |---
+        |-Dakka.cluster.seed-nodes.0=akka://akkounts@127.0.0.1:25520
+        |-Dakka.management.cluster.bootstrap.contact-point-discovery.discovery-method=config
+        |-Dakka.management.http.hostname=127.0.0.1
+        |-Dakka.remote.artery.canonical.hostname=127.0.0.1
+        |""".stripMargin
+  ) ++
+  addCommandAlias(
+    "r2",
+    """|reStart
+        |---
+        |-Dakka.cluster.seed-nodes.0=akka://akkounts@127.0.0.1:25520
+        |-Dakka.management.cluster.bootstrap.contact-point-discovery.discovery-method=config
+        |-Dakka.management.http.hostname=127.0.0.2
+        |-Dakka.remote.artery.canonical.hostname=127.0.0.2
+        |""".stripMargin
   )
