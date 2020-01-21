@@ -15,10 +15,14 @@ lazy val akkounts =
         library.akkaHttpSprayJson, // Transitive dependency of Akka Management
         library.akkaMgmClusterBootstrap,
         library.akkaMgmDiscoveryK8n,
+        library.akkaPersistenceCassandra,
+        library.akkaPersistenceQuery,
+        library.akkaPersistenceTyped,
         library.disruptor,
         library.log4jCore,
         library.log4jSlf4j,
         library.pureConfig,
+        library.akkaActorTestkitTyped   % Test,
         library.akkaHttpTestkit         % Test,
         library.akkaStreamTestkit       % Test,
         library.scalaCheck              % Test,
@@ -34,16 +38,18 @@ lazy val akkounts =
 lazy val library =
   new {
     object Version {
-      val akka                    = "2.6.3"
-      val akkaHttp                = "10.1.11"
-      val akkaMgm                 = "1.0.5"
-      val disruptor               = "3.4.2"
-      val log4j                   = "2.13.1"
-      val pureConfig              = "0.12.3"
-      val scalaCheck              = "1.14.3"
-      val scalaTest               = "3.1.1"
-      val scalaTestPlusScalaCheck = "3.1.1.1"
+      val akka                     = "2.6.3"
+      val akkaHttp                 = "10.1.11"
+      val akkaMgm                  = "1.0.5"
+      val akkaPersistenceCassandra = "0.102"
+      val disruptor                = "3.4.2"
+      val log4j                    = "2.13.1"
+      val pureConfig               = "0.12.3"
+      val scalaCheck               = "1.14.3"
+      val scalaTest                = "3.1.1"
+      val scalaTestPlusScalaCheck  = "3.1.1.1"
     }
+    val akkaActorTestkitTyped    = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
     val akkaCluster              = "com.typesafe.akka"             %% "akka-cluster-typed"                % Version.akka
     val akkaDiscovery            = "com.typesafe.akka"             %% "akka-discovery"                    % Version.akka
     val akkaHttp                 = "com.typesafe.akka"             %% "akka-http"                         % Version.akkaHttp
@@ -51,6 +57,9 @@ lazy val library =
     val akkaHttpTestkit          = "com.typesafe.akka"             %% "akka-http-testkit"                 % Version.akkaHttp
     val akkaMgmClusterBootstrap  = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaMgm
     val akkaMgmDiscoveryK8n      = "com.lightbend.akka.discovery"  %% "akka-discovery-kubernetes-api"     % Version.akkaMgm
+    val akkaPersistenceCassandra = "com.typesafe.akka"             %% "akka-persistence-cassandra"        % Version.akkaPersistenceCassandra
+    val akkaPersistenceQuery     = "com.typesafe.akka"             %% "akka-persistence-query"            % Version.akka
+    val akkaPersistenceTyped     = "com.typesafe.akka"             %% "akka-persistence-typed"            % Version.akka
     val akkaStreamTestkit        = "com.typesafe.akka"             %% "akka-stream-testkit"               % Version.akka
     val disruptor                = "com.lmax"                      %  "disruptor"                         % Version.disruptor
     val log4jCore                = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
