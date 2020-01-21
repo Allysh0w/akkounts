@@ -20,7 +20,11 @@ import akka.actor.{ CoordinatedShutdown, ActorSystem => ClassicSystem }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import akka.Done
-import akka.http.scaladsl.model.StatusCodes.OK
+import akka.cluster.sharding.typed.scaladsl.EntityRef
+import akka.http.scaladsl.model.StatusCodes.{ BadRequest, Created }
+import akka.util.Timeout
+import io.bullet.borer.Codec
+import io.bullet.borer.derivation.MapBasedCodecs.deriveCodec
 import org.slf4j.LoggerFactory
 import scala.concurrent.{ Future, Promise }
 import scala.concurrent.duration.FiniteDuration
@@ -32,7 +36,12 @@ import scala.util.{ Failure, Success }
   */
 object HttpServer {
 
-  final case class Config(interface: String, port: Int, terminationDeadline: FiniteDuration)
+  final case class Config(
+      interface: String,
+      port: Int,
+      terminationDeadline: FiniteDuration,
+      accountTimeout: FiniteDuration
+  )
 
   final class ReadinessCheck extends (() => Future[Boolean]) {
     override def apply(): Future[Boolean] =
@@ -41,9 +50,17 @@ object HttpServer {
 
   private final object BindFailure extends CoordinatedShutdown.Reason
 
+  private final case class Deposit(amount: Int)
+  private final case class Withdraw(amount: Int)
+
+  private implicit val depositCodec: Codec[Deposit]   = deriveCodec
+  private implicit val withdrawCodec: Codec[Withdraw] = deriveCodec
+
   private val ready = Promise[Boolean]()
 
-  def run(config: Config)(implicit system: ClassicSystem): Unit = {
+  def run(config: Config, accountFor: String => EntityRef[Account.Command])(
+      implicit system: ClassicSystem
+  ): Unit = {
     import config._
     import system.dispatcher
 
@@ -51,7 +68,7 @@ object HttpServer {
     val shutdown = CoordinatedShutdown(system)
 
     Http()
-      .bindAndHandle(route, interface, port)
+      .bindAndHandle(route(accountFor, accountTimeout), interface, port)
       .onComplete {
         case Failure(cause) =>
           log.error(s"Shutting down, because cannot bind to $interface:$port!", cause)
@@ -67,13 +84,44 @@ object HttpServer {
       }
   }
 
-  def route: Route = {
+  def route(
+      accountFor: String => EntityRef[Account.Command],
+      accountTimeout: FiniteDuration
+  ): Route = {
     import akka.http.scaladsl.server.Directives._
+    import io.bullet.borer.compat.akkaHttp.{ borerFromEntityUnmarshaller, borerToEntityMarshaller }
 
-    pathSingleSlash {
-      get {
-        complete {
-          OK
+    implicit val timeout: Timeout = accountTimeout
+
+    pathPrefix(Segment) { id =>
+      path("deposit") {
+        post {
+          entity(as[Deposit]) {
+            case Deposit(amount) =>
+              // TODO Replace asking with a Streamee FrontProcessor later!
+              onSuccess(accountFor(id) ? Account.deposit(amount)) {
+                case Account.InvalidAmount(a) => complete(BadRequest -> s"Invalid amount $a!")
+                case Account.Deposited(a)     => complete(Created    -> s"Deposited amount $a")
+              }
+          }
+        }
+      } ~
+      path("withdraw") {
+        post {
+          entity(as[Withdraw]) {
+            case Withdraw(amount) =>
+              // TODO Replace asking with a Streamee FrontProcessor later!
+              onSuccess(accountFor(id) ? Account.withdraw(amount)) {
+                case Account.InvalidAmount(a) =>
+                  complete(BadRequest -> s"Invalid amount $a!")
+
+                case Account.InsufficientBalance(a, b) =>
+                  complete(BadRequest -> s"Insufficient balance $b for amount $a!")
+
+                case Account.Withdrawn(a) =>
+                  complete(Created -> s"Withdrawn amount $a")
+              }
+          }
         }
       }
     }

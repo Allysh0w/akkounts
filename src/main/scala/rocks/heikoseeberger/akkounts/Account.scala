@@ -17,6 +17,7 @@
 package rocks.heikoseeberger.akkounts
 
 import akka.actor.typed.{ ActorRef, Behavior }
+import akka.cluster.sharding.typed.scaladsl.{ EntityContext, EntityTypeKey }
 import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior, ReplyEffect }
 import akka.persistence.typed.PersistenceId
 
@@ -44,6 +45,9 @@ object Account {
   final case class InvalidAmount(amount: Int) extends DepositReply with WithdrawReply
 
   final case class State(balance: Long)
+
+  val typeKey: EntityTypeKey[Command] =
+    EntityTypeKey("account")
 
   private val commandHandler: (State, Command) => ReplyEffect[Event, State] = {
     case (_, Deposit(amount, replyTo)) if amount <= 0 =>
@@ -73,6 +77,9 @@ object Account {
     case (State(balance), Withdrawn(amount)) => State(balance - amount)
   }
 
+  def apply(context: EntityContext[Account.Command]): Behavior[Command] =
+    Account(PersistenceId(context.entityTypeKey.name, context.entityId))
+
   def apply(persistenceId: PersistenceId): Behavior[Command] =
     EventSourcedBehavior.withEnforcedReplies(
       persistenceId,
@@ -80,4 +87,16 @@ object Account {
       commandHandler,
       eventHandler
     )
+
+  /**
+    * Helper for asking.
+    */
+  def deposit(amount: Int)(replyTo: ActorRef[DepositReply]): Deposit =
+    Deposit(amount, replyTo)
+
+  /**
+    * Helper for asking.
+    */
+  def withdraw(amount: Int)(replyTo: ActorRef[WithdrawReply]): Withdraw =
+    Withdraw(amount, replyTo)
 }

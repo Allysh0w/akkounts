@@ -9,7 +9,7 @@ lazy val akkounts =
     .settings(settings)
     .settings(
       libraryDependencies ++= Seq(
-        library.akkaCluster,
+        library.akkaClusterShardingTyped,
         library.akkaDiscovery,
         library.akkaHttp,
         library.akkaHttpSprayJson, // Transitive dependency of Akka Management
@@ -18,6 +18,9 @@ lazy val akkounts =
         library.akkaPersistenceCassandra,
         library.akkaPersistenceQuery,
         library.akkaPersistenceTyped,
+        library.borerCompatAkka,
+        library.borerCore,
+        library.borerDerivation,
         library.disruptor,
         library.log4jCore,
         library.log4jSlf4j,
@@ -42,6 +45,7 @@ lazy val library =
       val akkaHttp                 = "10.1.11"
       val akkaMgm                  = "1.0.5"
       val akkaPersistenceCassandra = "0.102"
+      val borer                    = "1.4.0"
       val disruptor                = "3.4.2"
       val log4j                    = "2.13.1"
       val pureConfig               = "0.12.3"
@@ -50,7 +54,7 @@ lazy val library =
       val scalaTestPlusScalaCheck  = "3.1.1.1"
     }
     val akkaActorTestkitTyped    = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
-    val akkaCluster              = "com.typesafe.akka"             %% "akka-cluster-typed"                % Version.akka
+    val akkaClusterShardingTyped = "com.typesafe.akka"             %% "akka-cluster-sharding-typed"       % Version.akka
     val akkaDiscovery            = "com.typesafe.akka"             %% "akka-discovery"                    % Version.akka
     val akkaHttp                 = "com.typesafe.akka"             %% "akka-http"                         % Version.akkaHttp
     val akkaHttpSprayJson        = "com.typesafe.akka"             %% "akka-http-spray-json"              % Version.akkaHttp
@@ -61,6 +65,9 @@ lazy val library =
     val akkaPersistenceQuery     = "com.typesafe.akka"             %% "akka-persistence-query"            % Version.akka
     val akkaPersistenceTyped     = "com.typesafe.akka"             %% "akka-persistence-typed"            % Version.akka
     val akkaStreamTestkit        = "com.typesafe.akka"             %% "akka-stream-testkit"               % Version.akka
+    val borerCompatAkka          = "io.bullet"                     %% "borer-compat-akka"                 % Version.borer
+    val borerCore                = "io.bullet"                     %% "borer-core"                        % Version.borer
+    val borerDerivation          = "io.bullet"                     %% "borer-derivation"                  % Version.borer
     val disruptor                = "com.lmax"                      %  "disruptor"                         % Version.disruptor
     val log4jCore                = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
     val log4jSlf4j               = "org.apache.logging.log4j"      %  "log4j-slf4j-impl"                  % Version.log4j
@@ -122,6 +129,8 @@ lazy val commandAliases =
         |-Dakka.management.http.hostname=127.0.0.1
         |-Dakka.remote.artery.canonical.hostname=127.0.0.1
         |-Dakkounts.http-server.interface=127.0.0.1
+        |-Dcassandra-journal.contact-points=127.0.0.1
+        |-Dcassandra-snapshot-store.contact-points=127.0.0.1
         |""".stripMargin
   ) ++
   addCommandAlias(
@@ -133,5 +142,7 @@ lazy val commandAliases =
         |-Dakka.management.http.hostname=127.0.0.2
         |-Dakka.remote.artery.canonical.hostname=127.0.0.2
         |-Dakkounts.http-server.interface=127.0.0.2
+        |-Dcassandra-journal.contact-points=127.0.0.1
+        |-Dcassandra-snapshot-store.contact-points=127.0.0.1
         |""".stripMargin
   )

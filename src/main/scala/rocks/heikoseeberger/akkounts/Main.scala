@@ -20,6 +20,7 @@ import akka.actor.{ ActorSystem => ClassicSystem }
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter.{ ClassicActorSystemOps, TypedActorSystemOps }
+import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, Entity }
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
@@ -70,7 +71,10 @@ object Main {
 
         implicit val classicSystem: ClassicSystem = context.system.toClassic
 
-        HttpServer.run(config.httpServer)
+        val sharding = ClusterSharding(context.system)
+        sharding.init(Entity(Account.typeKey)(Account(_)))
+
+        HttpServer.run(config.httpServer, sharding.entityRefFor(Account.typeKey, _))
 
         Behaviors.empty
       }
