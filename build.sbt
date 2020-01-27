@@ -27,9 +27,11 @@ lazy val akkounts =
         library.log4jSlf4j,
         library.pureConfig,
         library.streamee,
+        library.cassandraMigration,
         library.akkaActorTestkitTyped   % Test,
         library.akkaHttpTestkit         % Test,
         library.akkaStreamTestkit       % Test,
+        library.mockitoScala            % Test,
         library.scalaCheck              % Test,
         library.scalaTest               % Test,
         library.scalaTestPlusScalaCheck % Test,
@@ -48,8 +50,10 @@ lazy val library =
       val akkaMgm                  = "1.0.5"
       val akkaPersistenceCassandra = "0.102"
       val borer                    = "1.4.0"
+      val cassandraMigration       = "2.3.0"
       val disruptor                = "3.4.2"
       val log4j                    = "2.13.1"
+      val mockitoScala             = "1.11.3"
       val pureConfig               = "0.12.3"
       val scalaCheck               = "1.14.3"
       val scalaTest                = "3.1.1"
@@ -72,9 +76,11 @@ lazy val library =
     val borerCompatAkka          = "io.bullet"                     %% "borer-compat-akka"                 % Version.borer
     val borerCore                = "io.bullet"                     %% "borer-core"                        % Version.borer
     val borerDerivation          = "io.bullet"                     %% "borer-derivation"                  % Version.borer
+    val cassandraMigration       = "org.cognitor.cassandra"        %  "cassandra-migration"               % Version.cassandraMigration
     val disruptor                = "com.lmax"                      %  "disruptor"                         % Version.disruptor
     val log4jCore                = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
     val log4jSlf4j               = "org.apache.logging.log4j"      %  "log4j-slf4j-impl"                  % Version.log4j
+    val mockitoScala             = "org.mockito"                   %% "mockito-scala"                     % Version.mockitoScala
     val pureConfig               = "com.github.pureconfig"         %% "pureconfig"                        % Version.pureConfig
     val scalaCheck               = "org.scalacheck"                %% "scalacheck"                        % Version.scalaCheck
     val scalaTest                = "org.scalatest"                 %% "scalatest"                         % Version.scalaTest

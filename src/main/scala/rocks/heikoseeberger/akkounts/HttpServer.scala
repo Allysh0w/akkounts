@@ -28,6 +28,7 @@ import io.moia.streamee.FrontProcessor
 import org.slf4j.LoggerFactory
 import scala.concurrent.{ Future, Promise }
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.ExecutionContext
 import scala.util.{ Failure, Success }
 
 /**
@@ -41,7 +42,8 @@ object HttpServer {
       port: Int,
       terminationDeadline: FiniteDuration,
       depositProcessorTimeout: FiniteDuration,
-      withdrawProcessorTimeout: FiniteDuration
+      withdrawProcessorTimeout: FiniteDuration,
+      balanceProcessorTimeout: FiniteDuration
   )
 
   final class ReadinessCheck extends (() => Future[Boolean]) {
@@ -54,8 +56,9 @@ object HttpServer {
   private final case class Deposit(amount: Int)
   private final case class Withdraw(amount: Int)
 
-  private implicit val depositCodec: Codec[Deposit]   = deriveCodec
-  private implicit val withdrawCodec: Codec[Withdraw] = deriveCodec
+  private implicit val depositCodec: Codec[Deposit]                = deriveCodec
+  private implicit val withdrawCodec: Codec[Withdraw]              = deriveCodec
+  private implicit val balanceCodec: Codec[BalanceProcess.Balance] = deriveCodec
 
   private val ready = Promise[Boolean]()
 
@@ -68,7 +71,8 @@ object HttpServer {
       withdrawProcess: Process[
         WithdrawProcess.Withdraw,
         Either[WithdrawProcess.Error, WithdrawProcess.Withdrawn]
-      ]
+      ],
+      balanceProcess: Process[BalanceProcess.GetBalance, BalanceProcess.Balance]
   )(implicit system: ClassicSystem): Unit = {
     import config._
     import system.dispatcher
@@ -80,9 +84,11 @@ object HttpServer {
       FrontProcessor(depositProcess, depositProcessorTimeout, "deposit-processor")
     val withdrawProcessor =
       FrontProcessor(withdrawProcess, withdrawProcessorTimeout, "withdraw-processor")
+    val balanceProcessor =
+      FrontProcessor(balanceProcess, balanceProcessorTimeout, "balance-processor")
 
     Http()
-      .bindAndHandle(route(depositProcessor, withdrawProcessor), interface, port)
+      .bindAndHandle(route(depositProcessor, withdrawProcessor, balanceProcessor), interface, port)
       .onComplete {
         case Failure(cause) =>
           log.error(s"Shutting down, because cannot bind to $interface:$port!", cause)
@@ -106,12 +112,22 @@ object HttpServer {
       withdrawProcessor: FrontProcessor[
         WithdrawProcess.Withdraw,
         Either[WithdrawProcess.Error, WithdrawProcess.Withdrawn]
-      ]
-  ): Route = {
+      ],
+      balanceProcessor: FrontProcessor[BalanceProcess.GetBalance, BalanceProcess.Balance]
+  )(implicit ec: ExecutionContext): Route = {
     import akka.http.scaladsl.server.Directives._
     import io.bullet.borer.compat.akkaHttp.{ borerFromEntityUnmarshaller, borerToEntityMarshaller }
 
     pathPrefix(Segment) { id =>
+      pathEnd {
+        get {
+          complete {
+            balanceProcessor
+              .offer(BalanceProcess.GetBalance(id))
+              .map { case BalanceProcess.Balance(balance) => s"Balance is $balance" }
+          }
+        }
+      } ~
       path("deposit") {
         post {
           entity(as[Deposit]) {

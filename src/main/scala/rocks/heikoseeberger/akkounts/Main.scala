@@ -21,12 +21,25 @@ import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter.{ ClassicActorSystemOps, TypedActorSystemOps }
 import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, Entity }
-import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
+import akka.cluster.typed.{
+  Cluster,
+  ClusterSingleton,
+  SelfUp,
+  SingletonActor,
+  Subscribe,
+  Unsubscribe
+}
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
+import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
+import akka.persistence.query.PersistenceQuery
+import com.datastax.driver.core.Session
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
+import org.cognitor.cassandra.migration.{ Database, MigrationRepository, MigrationTask }
+import org.cognitor.cassandra.migration.keyspace.Keyspace
 import pureconfig.generic.auto.exportReader
 import pureconfig.ConfigSource
+import scala.util.{ Failure, Success }
 
 /**
   * Main entry point into the application. The main actor (guardian) defers initialization of the
@@ -39,7 +52,9 @@ object Main {
   final case class Config(
       httpServer: HttpServer.Config,
       depositProcess: DepositProcess.Config,
-      withdrawProcess: WithdrawProcess.Config
+      withdrawProcess: WithdrawProcess.Config,
+      balanceProcess: BalanceProcess.Config,
+      balanceProjection: BalanceProjection.Config
   )
 
   def main(args: Array[String]): Unit = {
@@ -56,8 +71,20 @@ object Main {
     AkkaManagement(classicSystem).start()
     ClusterBootstrap(classicSystem).start()
 
-    // Spawn main/guardian actor
-    classicSystem.spawn(Main(config), "main")
+    // Cassanra migration; piggyback on Cassandra session from Akka Persistence Cassandra plug-in
+    // If successful, spawn main/guardian actor, else terminate the system
+    import classicSystem.dispatcher
+    cassandraSession(classicSystem)
+      .map(runCassandraMigration)
+      .onComplete {
+        case Failure(cause) =>
+          classicSystem.log
+            .error(cause, "Terminating because of error during cassandra migration!")
+          classicSystem.terminate()
+
+        case Success(_) =>
+          classicSystem.spawn(Main(config), "main")
+      }
   }
 
   def apply(config: Config): Behavior[SelfUp] =
@@ -73,10 +100,24 @@ object Main {
           log.info(s"${context.system.name} joined cluster and is up")
         Cluster(context.system).subscriptions ! Unsubscribe(context.self)
 
+        import context.executionContext
         implicit val classicSystem: ClassicSystem = context.system.toClassic
 
         val sharding = ClusterSharding(context.system)
         sharding.init(Entity(Account.typeKey)(Account(_)))
+
+        val balanceDao = new BalanceDao(cassandraSession(classicSystem))
+
+        ClusterSingleton(context.system).init(
+          SingletonActor(
+            BalanceProjection(
+              config.balanceProjection,
+              balanceDao,
+              cassandraReadJournal(classicSystem)
+            ),
+            "balance-projection"
+          )
+        )
 
         val depositProcess =
           DepositProcess(config.depositProcess, sharding.entityRefFor(Account.typeKey, _))
@@ -84,9 +125,24 @@ object Main {
         val withdrawProcess =
           WithdrawProcess(config.withdrawProcess, sharding.entityRefFor(Account.typeKey, _))
 
-        HttpServer.run(config.httpServer, depositProcess, withdrawProcess)
+        val balanceProcess = BalanceProcess(config.balanceProcess, balanceDao)
+
+        HttpServer.run(config.httpServer, depositProcess, withdrawProcess, balanceProcess)
 
         Behaviors.empty
       }
     }
+
+  private def cassandraSession(classicSystem: ClassicSystem) =
+    cassandraReadJournal(classicSystem).session.underlying()
+
+  private def cassandraReadJournal(classicSystem: ClassicSystem) =
+    PersistenceQuery(classicSystem)
+      .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
+
+  private def runCassandraMigration(session: Session) = {
+    val database  = new Database(session.getCluster, new Keyspace(Name))
+    val migration = new MigrationTask(database, new MigrationRepository)
+    migration.migrate()
+  }
 }

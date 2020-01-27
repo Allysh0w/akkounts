@@ -46,8 +46,10 @@ object Account {
 
   final case class State(balance: Long)
 
+  final val Name = "account"
+
   val typeKey: EntityTypeKey[Command] =
-    EntityTypeKey("account")
+    EntityTypeKey(Name)
 
   private val commandHandler: (State, Command) => ReplyEffect[Event, State] = {
     case (_, Deposit(amount, replyTo)) if amount <= 0 =>
@@ -81,12 +83,14 @@ object Account {
     Account(PersistenceId(context.entityTypeKey.name, context.entityId))
 
   def apply(persistenceId: PersistenceId): Behavior[Command] =
-    EventSourcedBehavior.withEnforcedReplies(
-      persistenceId,
-      State(0),
-      commandHandler,
-      eventHandler
-    )
+    EventSourcedBehavior
+      .withEnforcedReplies(
+        persistenceId,
+        State(0),
+        commandHandler,
+        eventHandler
+      )
+      .withTagger(_ => Set(Name))
 
   /**
     * Helper for asking.
@@ -99,4 +103,16 @@ object Account {
     */
   def withdraw(amount: Int)(replyTo: ActorRef[WithdrawReply]): Withdraw =
     Withdraw(amount, replyTo)
+}
+
+/**
+  * Extractor for the account ID (entity ID) from a `PersistenceId`.
+  */
+object AccountId {
+
+  def unapply(persistenceId: String): Option[String] =
+    persistenceId.split(s"\\${PersistenceId.DefaultSeparator}") match {
+      case Array(_, id) => Some(id)
+      case _            => None
+    }
 }
