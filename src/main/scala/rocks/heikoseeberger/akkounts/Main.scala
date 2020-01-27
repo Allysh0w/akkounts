@@ -36,7 +36,11 @@ object Main {
 
   private final val Name = "akkounts"
 
-  final case class Config(httpServer: HttpServer.Config)
+  final case class Config(
+      httpServer: HttpServer.Config,
+      depositProcess: DepositProcess.Config,
+      withdrawProcess: WithdrawProcess.Config
+  )
 
   def main(args: Array[String]): Unit = {
     // Always use async logging!
@@ -74,7 +78,13 @@ object Main {
         val sharding = ClusterSharding(context.system)
         sharding.init(Entity(Account.typeKey)(Account(_)))
 
-        HttpServer.run(config.httpServer, sharding.entityRefFor(Account.typeKey, _))
+        val depositProcess =
+          DepositProcess(config.depositProcess, sharding.entityRefFor(Account.typeKey, _))
+
+        val withdrawProcess =
+          WithdrawProcess(config.withdrawProcess, sharding.entityRefFor(Account.typeKey, _))
+
+        HttpServer.run(config.httpServer, depositProcess, withdrawProcess)
 
         Behaviors.empty
       }

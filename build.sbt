@@ -18,6 +18,7 @@ lazy val akkounts =
         library.akkaPersistenceCassandra,
         library.akkaPersistenceQuery,
         library.akkaPersistenceTyped,
+        library.akkaStreamTyped, // Transitive dependency of Streamee
         library.borerCompatAkka,
         library.borerCore,
         library.borerDerivation,
@@ -25,6 +26,7 @@ lazy val akkounts =
         library.log4jCore,
         library.log4jSlf4j,
         library.pureConfig,
+        library.streamee,
         library.akkaActorTestkitTyped   % Test,
         library.akkaHttpTestkit         % Test,
         library.akkaStreamTestkit       % Test,
@@ -52,6 +54,7 @@ lazy val library =
       val scalaCheck               = "1.14.3"
       val scalaTest                = "3.1.1"
       val scalaTestPlusScalaCheck  = "3.1.1.1"
+      val streamee                 = "5.0.0"
     }
     val akkaActorTestkitTyped    = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
     val akkaClusterShardingTyped = "com.typesafe.akka"             %% "akka-cluster-sharding-typed"       % Version.akka
@@ -65,6 +68,7 @@ lazy val library =
     val akkaPersistenceQuery     = "com.typesafe.akka"             %% "akka-persistence-query"            % Version.akka
     val akkaPersistenceTyped     = "com.typesafe.akka"             %% "akka-persistence-typed"            % Version.akka
     val akkaStreamTestkit        = "com.typesafe.akka"             %% "akka-stream-testkit"               % Version.akka
+    val akkaStreamTyped          = "com.typesafe.akka"             %% "akka-stream-typed"                 % Version.akka
     val borerCompatAkka          = "io.bullet"                     %% "borer-compat-akka"                 % Version.borer
     val borerCore                = "io.bullet"                     %% "borer-core"                        % Version.borer
     val borerDerivation          = "io.bullet"                     %% "borer-derivation"                  % Version.borer
@@ -75,6 +79,7 @@ lazy val library =
     val scalaCheck               = "org.scalacheck"                %% "scalacheck"                        % Version.scalaCheck
     val scalaTest                = "org.scalatest"                 %% "scalatest"                         % Version.scalaTest
     val scalaTestPlusScalaCheck  = "org.scalatestplus"             %% "scalacheck-1-14"                   % Version.scalaTestPlusScalaCheck
+    val streamee                 = "io.moia"                       %% "streamee"                          % Version.streamee
   }
 
 // *****************************************************************************

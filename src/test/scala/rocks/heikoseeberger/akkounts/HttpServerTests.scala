@@ -18,11 +18,10 @@ package rocks.heikoseeberger.akkounts
 
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.actor.typed.ActorSystem
-import akka.actor.typed.scaladsl.Behaviors
-import akka.cluster.sharding.typed.scaladsl.TestEntityRef
 import akka.http.scaladsl.model.ContentTypes.`application/json`
 import akka.http.scaladsl.model.StatusCodes.{ BadRequest, Created }
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import io.moia.streamee.{ FrontProcessor, Process }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import scala.concurrent.duration.DurationInt
@@ -34,108 +33,104 @@ final class HttpServerTests extends AnyWordSpec with Matchers with ScalatestRout
 
   "The route" should {
     "respond to POST /42/deposit with BadRequest" in {
-      val account =
-        system.spawnAnonymous(Behaviors.receiveMessage[Account.Command] {
-          case Account.Deposit(amount, replyTo) =>
-            replyTo ! Account.InvalidAmount(amount)
-            Behaviors.stopped
-
-          case _ =>
-            Behaviors.stopped
-        })
-      def accountFor(entityId: String) = new TestEntityRef(account)
+      val (depositProcessor, withdrawProcessor) =
+        processors(
+          _ => Left(DepositProcess.Error.InvalidAmount(0)),
+          _ => Left(WithdrawProcess.Error.InvalidAmount(0))
+        )
 
       val request =
         Post("/42/deposit").withEntity(`application/json`, """{"amount":0}""")
 
-      request ~> route(accountFor, 1.second) ~> check {
+      request ~> route(depositProcessor, withdrawProcessor) ~> check {
         status shouldBe BadRequest
         responseAs[String] should include("Invalid amount 0")
       }
     }
 
     "respond to POST /42/deposit with Created" in {
-      val account =
-        system.spawnAnonymous(Behaviors.receiveMessage[Account.Command] {
-          case Account.Deposit(amount, replyTo) =>
-            replyTo ! Account.Deposited(amount)
-            Behaviors.stopped
-
-          case _ =>
-            Behaviors.stopped
-        })
-      def accountFor(entityId: String) = new TestEntityRef(account)
+      val (depositProcessor, withdrawProcessor) =
+        processors(
+          d => Right(DepositProcess.Deposited(d.amount)),
+          _ => Left(WithdrawProcess.Error.InvalidAmount(0))
+        )
 
       val request =
         Post("/42/deposit").withEntity(`application/json`, """{"amount":42}""")
 
-      request ~> route(accountFor, 1.second) ~> check {
+      request ~> route(depositProcessor, withdrawProcessor) ~> check {
         status shouldBe Created
         responseAs[String] should include("Deposited amount 42")
       }
     }
 
     "respond to POST /42/withdraw with BadRequest for an invalid amount" in {
-      val account =
-        system.spawnAnonymous(Behaviors.receiveMessage[Account.Command] {
-          case Account.Withdraw(amount, replyTo) =>
-            replyTo ! Account.InvalidAmount(amount)
-            Behaviors.stopped
-
-          case _ =>
-            Behaviors.stopped
-        })
-      def accountFor(entityId: String) = new TestEntityRef(account)
+      val (depositProcessor, withdrawProcessor) =
+        processors(
+          _ => Left(DepositProcess.Error.InvalidAmount(0)),
+          _ => Left(WithdrawProcess.Error.InvalidAmount(0))
+        )
 
       val request =
         Post("/42/withdraw").withEntity(`application/json`, """{"amount":0}""")
 
-      request ~> route(accountFor, 1.second) ~> check {
+      request ~> route(depositProcessor, withdrawProcessor) ~> check {
         status shouldBe BadRequest
         responseAs[String] should include("Invalid amount 0")
       }
     }
 
     "respond to POST /42/withdraw with BadRequest for insufficient balance" in {
-      val account =
-        system.spawnAnonymous(Behaviors.receiveMessage[Account.Command] {
-          case Account.Withdraw(amount, replyTo) =>
-            replyTo ! Account.InsufficientBalance(amount, 0)
-            Behaviors.stopped
-
-          case _ =>
-            Behaviors.stopped
-        })
-      def accountFor(entityId: String) = new TestEntityRef(account)
+      val (depositProcessor, withdrawProcessor) =
+        processors(
+          _ => Left(DepositProcess.Error.InvalidAmount(0)),
+          w => Left(WithdrawProcess.Error.InsufficientBalance(w.amount, 0))
+        )
 
       val request =
         Post("/42/withdraw").withEntity(`application/json`, """{"amount":42}""")
 
-      request ~> route(accountFor, 1.second) ~> check {
+      request ~> route(depositProcessor, withdrawProcessor) ~> check {
         status shouldBe BadRequest
         responseAs[String] should include("Insufficient balance 0 for amount 42")
       }
     }
 
     "respond to POST /42/withdraw with Created" in {
-      val account =
-        system.spawnAnonymous(Behaviors.receiveMessage[Account.Command] {
-          case Account.Withdraw(amount, replyTo) =>
-            replyTo ! Account.Withdrawn(amount)
-            Behaviors.stopped
-
-          case _ =>
-            Behaviors.stopped
-        })
-      def accountFor(entityId: String) = new TestEntityRef(account)
+      val (depositProcessor, withdrawProcessor) =
+        processors(
+          _ => Left(DepositProcess.Error.InvalidAmount(0)),
+          w => Right(WithdrawProcess.Withdrawn(w.amount))
+        )
 
       val request =
         Post("/42/withdraw").withEntity(`application/json`, """{"amount":42}""")
 
-      request ~> route(accountFor, 1.second) ~> check {
+      request ~> route(depositProcessor, withdrawProcessor) ~> check {
         status shouldBe Created
         responseAs[String] should include("Withdrawn amount 42")
       }
     }
+  }
+
+  private def processors(
+      deposit: DepositProcess.Deposit => Either[DepositProcess.Error, DepositProcess.Deposited],
+      withdraw: WithdrawProcess.Withdraw => Either[WithdrawProcess.Error, WithdrawProcess.Withdrawn]
+  ) = {
+    val depositProcessor =
+      FrontProcessor(
+        Process[DepositProcess.Deposit, Either[DepositProcess.Error, DepositProcess.Deposited]]
+          .map(deposit),
+        1.second,
+        "deposit-processor"
+      )
+    val withdrawProcessor =
+      FrontProcessor(
+        Process[WithdrawProcess.Withdraw, Either[WithdrawProcess.Error, WithdrawProcess.Withdrawn]]
+          .map(withdraw),
+        1.second,
+        "withdraw-processor"
+      )
+    (depositProcessor, withdrawProcessor)
   }
 }

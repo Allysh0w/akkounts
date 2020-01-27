@@ -20,11 +20,11 @@ import akka.actor.{ CoordinatedShutdown, ActorSystem => ClassicSystem }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import akka.Done
-import akka.cluster.sharding.typed.scaladsl.EntityRef
 import akka.http.scaladsl.model.StatusCodes.{ BadRequest, Created }
-import akka.util.Timeout
 import io.bullet.borer.Codec
 import io.bullet.borer.derivation.MapBasedCodecs.deriveCodec
+import io.moia.streamee.Process
+import io.moia.streamee.FrontProcessor
 import org.slf4j.LoggerFactory
 import scala.concurrent.{ Future, Promise }
 import scala.concurrent.duration.FiniteDuration
@@ -40,7 +40,8 @@ object HttpServer {
       interface: String,
       port: Int,
       terminationDeadline: FiniteDuration,
-      accountTimeout: FiniteDuration
+      depositProcessorTimeout: FiniteDuration,
+      withdrawProcessorTimeout: FiniteDuration
   )
 
   final class ReadinessCheck extends (() => Future[Boolean]) {
@@ -58,17 +59,30 @@ object HttpServer {
 
   private val ready = Promise[Boolean]()
 
-  def run(config: Config, accountFor: String => EntityRef[Account.Command])(
-      implicit system: ClassicSystem
-  ): Unit = {
+  def run(
+      config: Config,
+      depositProcess: Process[
+        DepositProcess.Deposit,
+        Either[DepositProcess.Error, DepositProcess.Deposited]
+      ],
+      withdrawProcess: Process[
+        WithdrawProcess.Withdraw,
+        Either[WithdrawProcess.Error, WithdrawProcess.Withdrawn]
+      ]
+  )(implicit system: ClassicSystem): Unit = {
     import config._
     import system.dispatcher
 
     val log      = LoggerFactory.getLogger(this.getClass)
     val shutdown = CoordinatedShutdown(system)
 
+    val depositProcessor =
+      FrontProcessor(depositProcess, depositProcessorTimeout, "deposit-processor")
+    val withdrawProcessor =
+      FrontProcessor(withdrawProcess, withdrawProcessorTimeout, "withdraw-processor")
+
     Http()
-      .bindAndHandle(route(accountFor, accountTimeout), interface, port)
+      .bindAndHandle(route(depositProcessor, withdrawProcessor), interface, port)
       .onComplete {
         case Failure(cause) =>
           log.error(s"Shutting down, because cannot bind to $interface:$port!", cause)
@@ -85,23 +99,28 @@ object HttpServer {
   }
 
   def route(
-      accountFor: String => EntityRef[Account.Command],
-      accountTimeout: FiniteDuration
+      depositProcessor: FrontProcessor[
+        DepositProcess.Deposit,
+        Either[DepositProcess.Error, DepositProcess.Deposited]
+      ],
+      withdrawProcessor: FrontProcessor[
+        WithdrawProcess.Withdraw,
+        Either[WithdrawProcess.Error, WithdrawProcess.Withdrawn]
+      ]
   ): Route = {
     import akka.http.scaladsl.server.Directives._
     import io.bullet.borer.compat.akkaHttp.{ borerFromEntityUnmarshaller, borerToEntityMarshaller }
-
-    implicit val timeout: Timeout = accountTimeout
 
     pathPrefix(Segment) { id =>
       path("deposit") {
         post {
           entity(as[Deposit]) {
             case Deposit(amount) =>
-              // TODO Replace asking with a Streamee FrontProcessor later!
-              onSuccess(accountFor(id) ? Account.deposit(amount)) {
-                case Account.InvalidAmount(a) => complete(BadRequest -> s"Invalid amount $a!")
-                case Account.Deposited(a)     => complete(Created    -> s"Deposited amount $a")
+              onSuccess(depositProcessor.offer(DepositProcess.Deposit(id, amount))) {
+                case Left(DepositProcess.Error.InvalidAmount(amount)) =>
+                  complete(BadRequest -> s"Invalid amount $amount!")
+                case Right(DepositProcess.Deposited(amount)) =>
+                  complete(Created -> s"Deposited amount $amount")
               }
           }
         }
@@ -110,16 +129,13 @@ object HttpServer {
         post {
           entity(as[Withdraw]) {
             case Withdraw(amount) =>
-              // TODO Replace asking with a Streamee FrontProcessor later!
-              onSuccess(accountFor(id) ? Account.withdraw(amount)) {
-                case Account.InvalidAmount(a) =>
-                  complete(BadRequest -> s"Invalid amount $a!")
-
-                case Account.InsufficientBalance(a, b) =>
-                  complete(BadRequest -> s"Insufficient balance $b for amount $a!")
-
-                case Account.Withdrawn(a) =>
-                  complete(Created -> s"Withdrawn amount $a")
+              onSuccess(withdrawProcessor.offer(WithdrawProcess.Withdraw(id, amount))) {
+                case Left(WithdrawProcess.Error.InvalidAmount(amount)) =>
+                  complete(BadRequest -> s"Invalid amount $amount!")
+                case Left(WithdrawProcess.Error.InsufficientBalance(amount, balance)) =>
+                  complete(BadRequest -> s"Insufficient balance $balance for amount $amount!")
+                case Right(WithdrawProcess.Withdrawn(amount)) =>
+                  complete(Created -> s"Withdrawn amount $amount")
               }
           }
         }
