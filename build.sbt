@@ -96,6 +96,7 @@ lazy val settings =
   commonSettings ++
   scalafmtSettings ++
   dockerSettings ++
+  pbSettings ++
   commandAliases
 
 lazy val commonSettings =
@@ -128,6 +129,13 @@ lazy val dockerSettings =
     Docker / version := "latest",
     dockerBaseImage := "adoptopenjdk:8u242-b08-jdk-hotspot",
     dockerExposedPorts := Seq(8080, 8558, 25520),
+  )
+
+lazy val pbSettings =
+  Seq(
+    Compile / PB.targets := Seq(
+      scalapb.gen(flatPackage = true) -> (Compile / sourceManaged).value
+    ),
   )
 
 lazy val commandAliases =

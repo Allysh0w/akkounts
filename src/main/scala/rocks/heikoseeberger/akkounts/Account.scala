@@ -20,6 +20,7 @@ import akka.actor.typed.{ ActorRef, Behavior }
 import akka.cluster.sharding.typed.scaladsl.{ EntityContext, EntityTypeKey }
 import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior, ReplyEffect }
 import akka.persistence.typed.PersistenceId
+import java.io.{ Serializable => JavaSerializable }
 
 /**
   * Persistent actor maintaining a balance and receiving [[Account.Deposit]] and
@@ -30,19 +31,34 @@ object Account {
 
   sealed trait Command
   sealed trait Event
+  sealed trait Serializable extends JavaSerializable
 
   // No `GetBalance` command, because this is the write side only ('C' in CQRS)!
 
-  final case class Deposit(amount: Int, replyTo: ActorRef[DepositReply]) extends Command
+  final case class Deposit(amount: Int, replyTo: ActorRef[DepositReply])
+      extends Command
+      with Serializable
+
   sealed trait DepositReply
-  final case class Deposited(amount: Int) extends Event with DepositReply
 
-  final case class Withdraw(amount: Int, replyTo: ActorRef[WithdrawReply]) extends Command
+  final case class Deposited(amount: Int) extends Event with DepositReply with Serializable
+
+  final case class Withdraw(amount: Int, replyTo: ActorRef[WithdrawReply])
+      extends Command
+      with Serializable
+
   sealed trait WithdrawReply
-  final case class InsufficientBalance(amount: Int, balance: Long) extends WithdrawReply
-  final case class Withdrawn(amount: Int)                          extends Event with WithdrawReply
 
-  final case class InvalidAmount(amount: Int) extends DepositReply with WithdrawReply
+  final case class InsufficientBalance(amount: Int, balance: Long)
+      extends WithdrawReply
+      with Serializable
+
+  final case class Withdrawn(amount: Int) extends Event with WithdrawReply with Serializable
+
+  final case class InvalidAmount(amount: Int)
+      extends DepositReply
+      with WithdrawReply
+      with Serializable
 
   final case class State(balance: Long)
 

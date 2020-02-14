@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package rocks.heikoseeberger.akkounts.proto.account;
+
+message Deposit {
+    int32 amount = 1;
+    string replyTo = 2;
+}
+
+message Deposited {
+    int32 amount = 1;
+}
+
+message Withdraw {
+    int32 amount = 1;
+    string replyTo = 2;
+}
+
+message InsufficientBalance {
+    int32 amount = 1;
+    int64 balance = 2;
+}
+
+message Withdrawn {
+    int32 amount = 1;
+}
+
+message InvalidAmount {
+    int32 amount = 1;
+}
