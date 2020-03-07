@@ -71,7 +71,7 @@ object BalanceProjection {
       readJournal: EventsByTagQuery
   )(implicit ec: ExecutionContext, logger: Logger) =
     Source
-      .future(balanceDao.readMaxOffset()) // Expensive operation only called from time to time (on restart)
+      .future(balanceDao.readMaxOffset())
       .flatMapConcat { offset =>
         val o = offset.map(TimeBasedUUID).getOrElse(Offset.noOffset)
         readJournal.eventsByTag(Account.Name, o)
