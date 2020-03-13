@@ -1,6 +1,8 @@
 syntax = "proto3";
 
-package rocks.heikoseeberger.akkounts.proto.account;
+option java_package = "rocks.heikoseeberger.akkounts.proto.account";
+
+package account;
 
 message Deposit {
     int32 amount = 1;
